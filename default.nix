@@ -7,12 +7,14 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [
     base
+    pure-elm 
     pure-txt
     pure-json
+    pure-localstorage
     pure-websocket
     hashable
   ] ++ (if ghc.isGhcjs or false
-        then [ pure-elm pure-localstorage ]
+        then [ ]
         else [ bytestring sorcerer crypto-api pwstore-fast ]
     );
   homepage = "github.com/grumply/pure-auth";

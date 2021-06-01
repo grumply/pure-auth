@@ -23,27 +23,21 @@ library
     , Pure.Auth.Data.Password
     , Pure.Auth.Data.Token
     , Pure.Auth.Data.Username
-    
+    , Pure.Auth.GHCJS
+    , Pure.Auth.GHCJS.Access
+    , Pure.Auth.GHCJS.Access.Login
+    , Pure.Auth.GHCJS.Access.Signup
+
   build-depends:
     base,
     pure-txt,
     pure-json,
     pure-websocket,
+    pure-elm,
+    pure-localstorage,
     hashable
 
-  if (impl(ghcjs))
-    
-    build-depends:
-      pure-elm,
-      pure-localstorage
-
-    other-modules:
-        Pure.Auth.GHCJS
-      , Pure.Auth.GHCJS.Access
-      , Pure.Auth.GHCJS.Access.Login
-      , Pure.Auth.GHCJS.Access.Signup
-
-  else
+  if !(impl(ghcjs))
     build-depends:
       bytestring,
       sorcerer, 

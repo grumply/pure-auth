@@ -5,5 +5,6 @@ module Pure.Auth (module Export) where
 import Pure.Auth.GHCJS as Export
 import Pure.Auth.API as Export
 #else
+import Pure.Auth.GHCJS as Export
 import Pure.Auth.GHC as Export
 #endif
