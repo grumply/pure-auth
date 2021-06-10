@@ -1,4 +1,4 @@
-{-# language LambdaCase, NamedFieldPuns, RecordWildCards, BlockArguments, DuplicateRecordFields, PartialTypeSignatures, ScopedTypeVariables #-}
+{-# language LambdaCase, NamedFieldPuns, RecordWildCards, BlockArguments, DuplicateRecordFields, PartialTypeSignatures, ScopedTypeVariables, DuplicateRecordFields #-}
 module Pure.Auth.GHC.API (Config(..),auth) where
 
 import Pure.Auth.API as API
@@ -24,7 +24,7 @@ import Prelude hiding (read)
 data Config = Config
   { validateUsername :: Username -> Bool
   , onTokenChange :: Maybe Token -> IO ()
-  , onRegister :: Email -> Key -> IO ()
+  , onRegister :: Email -> Key -> IO () -> IO ()
   , onRecover :: Email -> Key -> IO ()
   }
 
@@ -54,8 +54,9 @@ handleRegister Config { onRegister, validateUsername } = awaiting do
     key   <- hashKey k
     pass  <- hashPassword password
     r     <- observe (AuthEventStream username) Registered {..}
+    let activate = write (AuthEventStream username) Activated
     case r of
-      Added (_ :: Auth) -> liftIO (onRegister e k)
+      Added (_ :: Auth) -> liftIO (onRegister e k activate)
       _ -> pure ()
 
 handleInitiateRecovery :: Config -> MessageHandler API.InitiateRecovery
@@ -64,7 +65,7 @@ handleInitiateRecovery Config { onRecover } = awaiting do
 
   read (AuthEventStream username) >>= \case
 
-    Just Auth {} -> do
+    Just Auth { activation = Nothing } -> do
       k   <- newKey 64
       key <- hashKey k
       write (AuthEventStream username) StartedRecovery {..}
@@ -79,7 +80,7 @@ handleUpdateEmail Config { onRecover } = awaiting do
 
   read (AuthEventStream username) >>= \case
 
-    Just Auth { pass } | checkHash password pass -> do
+    Just Auth { activation = Nothing, pass } | checkHash password pass -> do
       email <- hashEmail e
       write (AuthEventStream username) ChangedEmail {..}
 
@@ -93,7 +94,7 @@ handleLogout Config { onTokenChange } = awaiting do
   let Token (username,_) = t
   read (AuthEventStream username) >>= \case
 
-    Just Auth { tokens } | Just token <- checkToken t tokens -> do
+    Just Auth { activation = Nothing, tokens } | Just token <- checkToken t tokens -> do
       write (AuthEventStream username) LoggedOut {..}
       liftIO (onTokenChange Nothing)
 
@@ -106,7 +107,7 @@ handleLogin Config { onTokenChange } = responding do
   
   read (AuthEventStream username) >>= \case
 
-    Just Auth { pass = p } | checkHash password p -> do
+    Just Auth { activation = Nothing, pass = p } | checkHash password p -> do
       t <- newToken username
       reply (Just t)
       token <- hashToken t
@@ -139,7 +140,7 @@ handleVerify Config { onTokenChange } = responding do
   let Token (username,k) = token
   read (AuthEventStream username) >>= \case
 
-    Just Auth { tokens } | Just _ <- unsafeCheckHashes k tokens -> do
+    Just Auth { activation = Nothing, tokens } | Just _ <- unsafeCheckHashes k tokens -> do
       reply True
       liftIO (onTokenChange (Just token))
 
@@ -152,7 +153,7 @@ handleUpdatePassword Config { onTokenChange } = responding do
 
   read (AuthEventStream username) >>= \case
 
-    Just Auth { pass } | checkHash oldPassword pass -> do
+    Just Auth { activation = Nothing, pass } | checkHash oldPassword pass -> do
       t <- newToken username
       reply (Just t)
 
@@ -174,7 +175,7 @@ handleRecover Config { onTokenChange } = responding do
   key <- hashKey k
   read (AuthEventStream username) >>= \case
 
-    Just Auth { recovery = r } | Just key == r -> do
+    Just Auth { activation = Nothing, recovery = Just r } | key == r -> do
       t <- newToken username
       reply (Just t)
 

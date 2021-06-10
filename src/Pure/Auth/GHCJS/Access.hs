@@ -1,4 +1,4 @@
-{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings #-}
+{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields #-}
 module Pure.Auth.GHCJS.Access ( Access(..), access, authorize ) where
 
 import Pure.Auth.API as Auth

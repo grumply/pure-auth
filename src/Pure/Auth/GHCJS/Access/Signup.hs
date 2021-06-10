@@ -1,4 +1,4 @@
-{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings #-}
+{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields  #-}
 module Pure.Auth.GHCJS.Access.Signup ( signup, Signup (..) ) where
 
 import qualified Pure.Auth.API as Auth
