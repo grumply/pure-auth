@@ -32,6 +32,7 @@ library
     base,
     pure-txt,
     pure-json,
+    pure-maybe,
     pure-websocket,
     pure-elm,
     pure-localstorage,

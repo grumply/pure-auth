@@ -1,4 +1,4 @@
-{ mkDerivation, stdenv, ghc, base, bytestring, pure-txt, pure-json, pure-elm, 
+{ mkDerivation, stdenv, ghc, base, bytestring, pure-txt, pure-json, pure-maybe, pure-elm, 
   pure-localstorage, pure-websocket, sorcerer, hashable, crypto-api, pwstore-fast
 }:
 mkDerivation {
@@ -10,6 +10,7 @@ mkDerivation {
     pure-elm 
     pure-txt
     pure-json
+    pure-maybe
     pure-localstorage
     pure-websocket
     hashable

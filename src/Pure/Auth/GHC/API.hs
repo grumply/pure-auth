@@ -48,13 +48,15 @@ handleRegister :: Config -> MessageHandler API.Register
 handleRegister Config { onRegister, validateUsername } = awaiting do
   RegisterMessage { email = e, ..} <- acquire
 
-  when (validateUsername username) do
+  let un = Txt.toLower username
+
+  when (validateUsername un) do
     k     <- newKey 64
     email <- hashEmail e
     key   <- hashKey k
     pass  <- hashPassword password
-    r     <- observe (AuthEventStream username) Registered {..}
-    let activate = write (AuthEventStream username) Activated
+    r     <- let username = un in observe (AuthEventStream un) Registered {..}
+    let activate = write (AuthEventStream un) Activated
     case r of
       Added (_ :: Auth) -> liftIO (onRegister e k activate)
       _ -> pure ()
@@ -62,13 +64,15 @@ handleRegister Config { onRegister, validateUsername } = awaiting do
 handleInitiateRecovery :: Config -> MessageHandler API.InitiateRecovery
 handleInitiateRecovery Config { onRecover } = awaiting do
   InitiateRecoveryMessage {..} <- acquire
+  
+  let un = Txt.toLower username
 
-  read (AuthEventStream username) >>= \case
+  read (AuthEventStream un) >>= \case
 
     Just Auth { activation = Nothing } -> do
       k   <- newKey 64
       key <- hashKey k
-      write (AuthEventStream username) StartedRecovery {..}
+      write (AuthEventStream un) StartedRecovery {..}
       liftIO (onRecover email k)
 
     _ -> 
@@ -78,11 +82,13 @@ handleUpdateEmail :: Config -> MessageHandler API.UpdateEmail
 handleUpdateEmail Config { onRecover } = awaiting do
   UpdateEmailMessage { email = e, ..} <- acquire
 
-  read (AuthEventStream username) >>= \case
+  let un = Txt.toLower username
+
+  read (AuthEventStream un) >>= \case
 
     Just Auth { activation = Nothing, pass } | checkHash password pass -> do
       email <- hashEmail e
-      write (AuthEventStream username) ChangedEmail {..}
+      write (AuthEventStream un) ChangedEmail {..}
 
     _ ->
       pure ()
@@ -91,11 +97,13 @@ handleLogout :: Config -> MessageHandler API.Logout
 handleLogout Config { onTokenChange } = awaiting do
   LogoutMessage { token = t, ..} <- acquire
 
-  let Token (username,_) = t
-  read (AuthEventStream username) >>= \case
+  let un = Txt.toLower username
+
+  let Token (un,_) = t
+  read (AuthEventStream un) >>= \case
 
     Just Auth { activation = Nothing, tokens } | Just token <- checkToken t tokens -> do
-      write (AuthEventStream username) LoggedOut {..}
+      write (AuthEventStream un) LoggedOut {..}
       liftIO (onTokenChange Nothing)
 
     _ ->
@@ -104,14 +112,16 @@ handleLogout Config { onTokenChange } = awaiting do
 handleLogin :: Config -> RequestHandler API.Login
 handleLogin Config { onTokenChange } = responding do
   LoginRequest {..} <- acquire
+
+  let un = Txt.toLower username
   
-  read (AuthEventStream username) >>= \case
+  read (AuthEventStream un) >>= \case
 
     Just Auth { activation = Nothing, pass = p } | checkHash password p -> do
-      t <- newToken username
+      t <- newToken un
       reply (Just t)
       token <- hashToken t
-      write (AuthEventStream username) LoggedIn {..}
+      write (AuthEventStream un) LoggedIn {..}
       liftIO (onTokenChange (Just t))
 
     _ -> 
@@ -121,14 +131,16 @@ handleActivate :: Config -> RequestHandler API.Activate
 handleActivate Config { onTokenChange } = responding do
   ActivateRequest {..} <- acquire
 
-  read (AuthEventStream username) >>= \case
+  let un = Txt.toLower username
+
+  read (AuthEventStream un) >>= \case
 
     Just Auth { activation = Just a } | checkHash key a -> do
-      t <- newToken username
+      t <- newToken un
       reply (Just t)
       token <- hashToken t
-      write (AuthEventStream username) Activated
-      write (AuthEventStream username) LoggedIn {..}
+      write (AuthEventStream un) Activated
+      write (AuthEventStream un) LoggedIn {..}
 
     _ ->
       reply Nothing
@@ -137,8 +149,10 @@ handleVerify :: Config -> RequestHandler API.Verify
 handleVerify Config { onTokenChange } = responding do
   VerifyRequest {..} <- acquire
 
-  let Token (username,k) = token
-  read (AuthEventStream username) >>= \case
+  let un = Txt.toLower username
+
+  let Token (un,k) = token
+  read (AuthEventStream un) >>= \case
 
     Just Auth { activation = Nothing, tokens } | Just _ <- unsafeCheckHashes k tokens -> do
       reply True
@@ -151,17 +165,19 @@ handleUpdatePassword :: Config -> RequestHandler API.UpdatePassword
 handleUpdatePassword Config { onTokenChange } = responding do
   UpdatePasswordRequest {..} <- acquire
 
-  read (AuthEventStream username) >>= \case
+  let un = Txt.toLower username
+
+  read (AuthEventStream un) >>= \case
 
     Just Auth { activation = Nothing, pass } | checkHash oldPassword pass -> do
-      t <- newToken username
+      t <- newToken un
       reply (Just t)
 
       pass <- hashPassword newPassword
-      write (AuthEventStream username) ChangedPassword {..}
+      write (AuthEventStream un) ChangedPassword {..}
 
       token <- hashToken t
-      write (AuthEventStream username) LoggedIn {..}
+      write (AuthEventStream un) LoggedIn {..}
 
       liftIO (onTokenChange (Just t))
 
@@ -172,18 +188,20 @@ handleRecover :: Config -> RequestHandler API.Recover
 handleRecover Config { onTokenChange } = responding do
   RecoverRequest { key = k, ..} <- acquire
 
+  let un = Txt.toLower username
+
   key <- hashKey k
-  read (AuthEventStream username) >>= \case
+  read (AuthEventStream un) >>= \case
 
     Just Auth { activation = Nothing, recovery = Just r } | key == r -> do
-      t <- newToken username
+      t <- newToken un
       reply (Just t)
 
       pass <- hashPassword password
-      write (AuthEventStream username) ChangedPassword {..}
+      write (AuthEventStream un) ChangedPassword {..}
 
       token <- hashToken t
-      write (AuthEventStream username) LoggedIn {..}
+      write (AuthEventStream un) LoggedIn {..}
       
       liftIO (onTokenChange (Just t))
 

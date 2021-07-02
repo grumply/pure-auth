@@ -1,5 +1,5 @@
 {-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields #-}
-module Pure.Auth.GHCJS.Access ( Access(..), access, authorize ) where
+module Pure.Auth.GHCJS.Access ( Access(..), access, authorize, withToken ) where
 
 import Pure.Auth.API as Auth
 import Pure.Auth.Data.Token
@@ -8,6 +8,7 @@ import qualified Pure.Auth.GHCJS.Access.Signup as Signup
 
 import Pure.Elm.Application hiding (active,not,mode)
 import qualified Pure.Data.LocalStorage as LS
+import Pure.Maybe (producing,consuming)
 import Pure.WebSocket
 
 import Control.Concurrent
@@ -141,5 +142,8 @@ authorize = do
   mv <- newEmptyMVar
   publish (Initiate (putMVar mv))
   takeMVar mv
+
+withToken :: (Maybe Token -> View) -> View
+withToken = producing authorize . consuming
 
 instance Theme Access
