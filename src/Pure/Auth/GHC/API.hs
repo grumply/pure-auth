@@ -11,6 +11,7 @@ import Pure.Auth.Data.Password (Password(..))
 import Pure.Auth.Data.Token (Token(..))
 import Pure.Auth.Data.Username (Username)
 
+import qualified Pure.Data.Txt as Txt
 import Pure.WebSocket as WS
 import Sorcerer hiding (event)
 
