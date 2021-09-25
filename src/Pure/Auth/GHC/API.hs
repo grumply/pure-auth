@@ -13,7 +13,7 @@ import Pure.Auth.Data.Username (Username,normalize)
 
 import qualified Pure.Data.Txt as Txt
 import Pure.WebSocket as WS
-import Sorcerer hiding (event,Deleted)
+import Pure.Sorcerer hiding (event,Deleted)
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)

@@ -10,7 +10,7 @@ import Pure.Auth.Data.Username (Username)
 
 import Pure.Data.JSON (ToJSON,FromJSON)
 
-import Sorcerer hiding (Event,Deleted)
+import Pure.Sorcerer hiding (Event,Deleted)
 
 import Data.Hashable
 
