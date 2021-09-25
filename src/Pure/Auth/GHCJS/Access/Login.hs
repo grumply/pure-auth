@@ -1,5 +1,5 @@
 {-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields, TypeFamilies, FlexibleContexts #-}
-module Pure.Auth.GHCJS.Access.Login ( login, Login(..) ) where
+module Pure.Auth.GHCJS.Access.Login ( Login(..) ) where
 
 import qualified Pure.Auth.API as Auth
 import Pure.Auth.Data.Username
@@ -16,12 +16,9 @@ import Control.Concurrent (newEmptyMVar,putMVar,takeMVar)
 data Login = Login 
   { socket    :: WebSocket
   , onSuccess :: Token -> IO ()
-  , onCancel  :: IO () -- call this if user closes the login modal (not yet implemented)
   , onSignup  :: IO ()
   } deriving Theme
   
-login = run @Login
-
 instance Component Login where
   data Model Login = Model
     { invalid  :: Bool
@@ -69,7 +66,7 @@ submit Login { socket, onSuccess } mdl@Model { username, password } = do
   case mt of
     Nothing -> pure mdl { invalid = True }
     Just t -> do
-      LS.put "session" t
+      LS.put "pure-auth-session" t
       onSuccess t
       pure mdl { invalid = False }
 

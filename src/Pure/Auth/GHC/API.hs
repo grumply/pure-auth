@@ -13,7 +13,7 @@ import Pure.Auth.Data.Username (Username,normalize)
 
 import qualified Pure.Data.Txt as Txt
 import Pure.WebSocket as WS
-import Sorcerer hiding (event)
+import Sorcerer hiding (event,Deleted)
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
@@ -24,9 +24,11 @@ import Prelude hiding (read)
 
 data Config = Config
   { validateUsername :: Username -> Bool
-  , onTokenChange :: Maybe Token -> IO ()
-  , onRegister :: Email -> Key -> IO () -> IO ()
-  , onRecover :: Email -> Key -> IO ()
+  , onTokenChange    :: Maybe Token -> IO ()
+  , onDeleted        :: Username -> Email -> IO ()
+  , onRegister       :: Username -> Email -> Key -> IO () -> IO ()
+  , onRecover        :: Username -> Email -> Key -> IO ()
+  , onDelete         :: Username -> Email -> Key -> IO ()
   }
 
 auth :: Config -> _
@@ -36,6 +38,8 @@ auth config = Endpoints API.api msgs reqs
        <:> handleInitiateRecovery config
        <:> handleUpdateEmail config
        <:> handleLogout config
+       <:> handleInitiateDelete config
+       <:> handleDelete config
        <:> WS.none
 
     reqs = handleLogin config
@@ -52,30 +56,36 @@ handleRegister Config { onRegister, validateUsername } = awaiting do
   let un = normalize username
 
   when (validateUsername un) do
-    k     <- newKey 64
-    email <- hashEmail e
-    key   <- hashKey k
-    pass  <- hashPassword password
-    r     <- let username = un in observe (AuthEventStream un) Registered {..}
-    let activate = write (AuthEventStream un) Activated
-    case r of
-      Added (_ :: Auth) -> liftIO (onRegister e k activate)
-      _ -> pure ()
+    read (AuthEventStream un) >>= \case
+
+      Just (_ :: Auth) -> 
+        pure ()
+
+      _ -> do
+        k     <- newKey 64
+        email <- hashEmail e
+        key   <- hashKey k
+        pass  <- hashPassword password
+        r     <- let username = un in observe (AuthEventStream un) Registered {..}
+        let activate = write (AuthEventStream un) Activated
+        case r of
+          -- Check if `Added` to prevent re-initialization after deletion.
+          Added (_ :: Auth) -> liftIO (onRegister un e k activate)
+          _ -> pure ()
 
 handleInitiateRecovery :: Config -> MessageHandler API.InitiateRecovery
 handleInitiateRecovery Config { onRecover } = awaiting do
-  InitiateRecoveryMessage {..} <- acquire
+  InitiateRecoveryMessage { email = e, ..} <- acquire
   
   let un = normalize username
 
   read (AuthEventStream un) >>= \case
 
-    Just Auth { activation = Nothing } -> do
+    Just Auth { email, activation = Nothing } | checkHash e email -> do
       k   <- newKey 64
       key <- hashKey k
       write (AuthEventStream un) StartedRecovery {..}
-      liftIO (onRecover email k)
-
+      liftIO (onRecover un e k)
     _ -> 
       pure ()
 
@@ -208,4 +218,35 @@ handleRecover Config { onTokenChange } = responding do
 
     _ ->
       reply Nothing
+
+handleInitiateDelete :: Config -> MessageHandler API.InitiateDeletion
+handleInitiateDelete Config { onDelete } = awaiting do
+  InitiateDeletionMessage { email = e, ..} <- acquire
+  
+  let un = normalize username
+
+  read (AuthEventStream un) >>= \case
+
+    Just Auth { email, deletion = Nothing } | checkHash e email -> do
+      k   <- newKey 64
+      key <- hashKey k
+      write (AuthEventStream un) StartedDeletion {..}
+      liftIO (onDelete un e k)
+
+    _ -> 
+      pure ()
+
+handleDelete :: Config -> MessageHandler API.Delete
+handleDelete Config { onDeleted } = awaiting do
+  DeleteMessage { email = e, key = k, .. } <- acquire
+
+  let un = normalize username
+
+  read (AuthEventStream un) >>= \case
+    Just Auth { email, deletion = Just k' } | checkHash k k' -> do
+      write (AuthEventStream un) Deleted 
+      liftIO (onDeleted un e)
+      
+    _ ->
+      pure ()
 

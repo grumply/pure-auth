@@ -10,7 +10,7 @@ import Pure.Auth.Data.Username (Username)
 
 import Pure.Data.JSON (ToJSON,FromJSON)
 
-import Sorcerer hiding (Event)
+import Sorcerer hiding (Event,Deleted)
 
 import Data.Hashable
 
@@ -31,6 +31,7 @@ data Auth = Auth
   , pass       :: Hash 10 Password
   , activation :: Maybe (Hash 1 Key)
   , recovery   :: Maybe (Hash 1 Key)
+  , deletion   :: Maybe (Hash 1 Key)
   , tokens     :: [Hash 1 Token]
   } deriving stock (Generic,Eq,Ord)
     deriving anyclass (ToJSON,FromJSON)
@@ -58,6 +59,10 @@ data AuthEvent
   | ChangedEmail
     { email :: Hash 1 Email
     }
+  | StartedDeletion
+    { key :: Hash 1 Key
+    }
+  | Deleted -- No key needed so it can be used for banning.
     deriving stock Generic
     deriving anyclass (ToJSON,FromJSON)
 
@@ -74,6 +79,7 @@ instance Aggregable AuthEvent Auth where
       , pass       = pass
       , activation = Just key
       , recovery   = Nothing
+      , deletion   = Nothing
       , tokens     = []
       }
 
@@ -99,6 +105,12 @@ instance Aggregable AuthEvent Auth where
       
   update ChangedEmail { email = e } (Just a) =
     Update a { tokens = [], email = e }
+    
+  update (StartedDeletion k) (Just a) =
+    Update a { deletion = Just k }
+    
+  update Deleted (Just _) = 
+    Delete
 
   update _ _ =
     Ignore

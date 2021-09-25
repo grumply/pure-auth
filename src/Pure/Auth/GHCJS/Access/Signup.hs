@@ -1,5 +1,5 @@
 {-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields, TypeFamilies, FlexibleContexts #-}
-module Pure.Auth.GHCJS.Access.Signup ( signup, Signup (..) ) where
+module Pure.Auth.GHCJS.Access.Signup ( Signup (..) ) where
 
 import qualified Pure.Auth.API as Auth
 import Pure.Auth.Data.Email
@@ -12,13 +12,10 @@ import Pure.Data.Txt
 import Pure.WebSocket (WebSocket,message)
 
 data Signup = Signup 
-  { socket     :: WebSocket
-  , onCancel   :: IO () -- call this if user closes the signup modal (not yet implemented)
-  , onSuccess  :: IO ()
-  , onLogin    :: IO ()
+  { socket    :: WebSocket
+  , onSuccess :: IO ()
+  , onLogin   :: IO ()
   } deriving Theme
-
-signup = run @Signup
 
 instance Component Signup where
   data Model Signup = Model

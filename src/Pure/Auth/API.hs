@@ -124,6 +124,31 @@ mkMessage "Logout"
   [t|LogoutMessage|]
 
 --------------------------------------------------------------------------------
+-- Initiate Deletion
+
+data InitiateDeletionMessage = InitiateDeletionMessage
+  { username :: Username
+  , email    :: Email 
+  } deriving stock Generic
+    deriving anyclass (ToJSON,FromJSON)
+
+mkMessage "InitiateDeletion"
+  [t|InitiateDeletionMessage|] 
+
+--------------------------------------------------------------------------------
+-- Delete
+
+data DeleteMessage = DeleteMessage
+  { username :: Username
+  , email    :: Email
+  , key      :: Key
+  } deriving stock Generic
+    deriving anyclass (ToJSON,FromJSON)
+
+mkMessage "Delete"
+  [t|DeleteMessage|]
+
+--------------------------------------------------------------------------------
 -- API
 
 api = WS.api msgs reqs
@@ -132,6 +157,8 @@ api = WS.api msgs reqs
        <:> initiateRecovery
        <:> updateEmail
        <:> logout
+       <:> initiateDeletion
+       <:> delete
        <:> WS.none
 
     reqs = login

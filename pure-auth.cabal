@@ -26,6 +26,7 @@ library
     , Pure.Auth.GHCJS
     , Pure.Auth.GHCJS.Access
     , Pure.Auth.GHCJS.Access.Login
+    , Pure.Auth.GHCJS.Access.Recover
     , Pure.Auth.GHCJS.Access.Signup
 
   build-depends:
