@@ -1,5 +1,5 @@
 { mkDerivation, stdenv, ghc, base, bytestring, pure-txt, pure-json, pure-maybe, pure-elm, 
-  pure-localstorage, pure-websocket, sorcerer, hashable, crypto-api, pwstore-fast
+  pure-localstorage, pure-websocket, pure-sorcerer, hashable, crypto-api, pwstore-fast
 }:
 mkDerivation {
   pname = "pure-auth";
@@ -16,7 +16,7 @@ mkDerivation {
     hashable
   ] ++ (if ghc.isGhcjs or false
         then [ ]
-        else [ bytestring sorcerer crypto-api pwstore-fast ]
+        else [ bytestring pure-sorcerer crypto-api pwstore-fast ]
     );
   homepage = "github.com/grumply/pure-auth";
   license = stdenv.lib.licenses.bsd3;

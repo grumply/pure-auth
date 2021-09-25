@@ -42,7 +42,7 @@ library
   if !(impl(ghcjs))
     build-depends:
       bytestring,
-      sorcerer, 
+      pure-sorcerer, 
       crypto-api, 
       pwstore-fast 
 
