@@ -15,6 +15,7 @@ import Pure.Sorcerer hiding (Event,Deleted)
 import Data.Hashable
 
 import qualified Data.List as List
+import Data.Typeable
 import GHC.Generics (Generic)
 
 -- Avoids storing raw primitives, like passwords, keys, and tokens, by storing their
@@ -25,23 +26,23 @@ import GHC.Generics (Generic)
 -- obfuscates the record on disk - it is not a cryptographically secure hash in any 
 -- sense, as searching for a record for a particular email would be exceptionally
 -- easy. 
-data Auth = Auth
+data Auth _role = Auth
   { username   :: Username
   , email      :: Hash 1 Email
   , pass       :: Hash 10 Password
   , activation :: Maybe (Hash 1 Key)
   , recovery   :: Maybe (Hash 1 Key)
   , deletion   :: Maybe (Hash 1 Key)
-  , tokens     :: [Hash 1 Token]
+  , tokens     :: [Hash 1 (Token _role)]
   } deriving stock (Generic,Eq,Ord)
     deriving anyclass (ToJSON,FromJSON)
 
-data AuthEvent 
+data AuthEvent _role
   = LoggedIn
-    { token :: Hash 1 Token
+    { token :: Hash 1 (Token _role)
     }
   | LoggedOut
-    { token :: Hash 1 Token
+    { token :: Hash 1 (Token _role)
     }
   | Registered
     { username :: Username
@@ -66,12 +67,12 @@ data AuthEvent
     deriving stock Generic
     deriving anyclass (ToJSON,FromJSON)
 
-instance Source AuthEvent where
-  data Stream AuthEvent = AuthEventStream Username
+instance Typeable _role => Source (AuthEvent _role) where
+  data Stream (AuthEvent _role) = AuthEventStream Username
     deriving stock Generic
     deriving anyclass Hashable
 
-instance Aggregable AuthEvent Auth where
+instance Typeable _role => Aggregable (AuthEvent _role) (Auth _role) where
   update Registered {..} Nothing = 
     Update Auth
       { username   = username

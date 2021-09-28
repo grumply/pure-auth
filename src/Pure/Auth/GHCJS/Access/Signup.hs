@@ -1,4 +1,4 @@
-{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields, TypeFamilies, FlexibleContexts #-}
+{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields, TypeFamilies, FlexibleContexts, ScopedTypeVariables #-}
 module Pure.Auth.GHCJS.Access.Signup ( Signup (..) ) where
 
 import qualified Pure.Auth.API as Auth
@@ -11,14 +11,16 @@ import Pure.Elm.Component hiding (message,name)
 import Pure.Data.Txt
 import Pure.WebSocket (WebSocket,message)
 
-data Signup = Signup 
+import Data.Typeable
+
+data Signup (_role :: *) = Signup 
   { socket    :: WebSocket
   , onSuccess :: IO ()
   , onLogin   :: IO ()
   } deriving Theme
 
-instance Component Signup where
-  data Model Signup = Model
+instance Typeable _role => Component (Signup _role) where
+  data Model (Signup _role) = Model
     { username :: Username
     , password :: Password
     , email    :: Email
@@ -30,7 +32,7 @@ instance Component Signup where
       password = fromTxt ""
       email    = fromTxt ""
 
-  data Msg Signup
+  data Msg (Signup _role)
     = SetUsername Username 
     | SetPassword Password 
     | SetEmail Email
@@ -43,7 +45,7 @@ instance Component Signup where
     Submit         -> submit
 
   view Signup { onLogin } Model {..} =
-    Div <| Themed @Signup |>
+    Div <| Themed @(Signup _role) |>
       [ Input <| OnInput (withInput (command . SetEmail . fromTxt)) . Placeholder "Email" . Type "email"
       , Input <| OnInput (withInput (command . SetUsername . fromTxt)) . Placeholder "Username" . Type "name"
       , Input <| OnInput (withInput (command . SetPassword . fromTxt)) . Placeholder "Password" . Type "password"
@@ -53,17 +55,17 @@ instance Component Signup where
         [ "Log In" ]
       ]
 
-setUsername :: Username -> Update Signup
+setUsername :: Username -> Update (Signup _role)
 setUsername un _ mdl = pure mdl { username = un }
 
-setPassword :: Password -> Update Signup
+setPassword :: Password -> Update (Signup _role)
 setPassword pw _ mdl = pure mdl { password = pw }
 
-setEmail :: Email -> Update Signup
+setEmail :: Email -> Update (Signup _role)
 setEmail em _ mdl = pure mdl { email = em }
 
-submit :: Update Signup
+submit :: forall _role. Typeable _role => Update (Signup _role)
 submit Signup { socket, onSuccess } mdl@Model { username, email, password } = do
-  message Auth.api socket Auth.register Auth.RegisterMessage {..}
+  message (Auth.api @_role) socket (Auth.register @_role) Auth.RegisterMessage {..}
   onSuccess
   pure mdl

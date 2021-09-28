@@ -125,11 +125,11 @@ hashEmail = hashTxt . toTxt
 -- Token
 --   Used to authenticate sessions.
 
-newToken :: MonadIO m => Username -> m Token
+newToken :: MonadIO m => Username -> m (Token _role)
 newToken un = ((Token .) . (,)) <$> pure un <*> newKey 64
 
-hashToken :: forall n m. (KnownNat n, MonadIO m) => Token -> m (Hash n Token)
+hashToken :: (KnownNat n, MonadIO m) => Token _role -> m (Hash n (Token _role))
 hashToken (Token (_,token)) = hashTxt (toTxt token)
 
-checkToken :: Token -> [Hash n Token] -> Maybe (Hash n Token)
+checkToken :: Token _role -> [Hash n (Token _role)] -> Maybe (Hash n (Token _role))
 checkToken (Token (_,token)) = unsafeCheckHashes (toTxt token)

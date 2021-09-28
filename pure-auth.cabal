@@ -46,7 +46,7 @@ library
       crypto-api, 
       pwstore-fast 
 
-    other-modules:
+    exposed-modules:
         Pure.Auth.GHC
       , Pure.Auth.GHC.API
       , Pure.Auth.GHC.Auth

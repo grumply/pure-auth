@@ -1,4 +1,4 @@
-{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields, TypeFamilies, FlexibleContexts #-}
+{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields, TypeFamilies, FlexibleContexts, ScopedTypeVariables #-}
 module Pure.Auth.GHCJS.Access ( Access(..), authorize, withToken ) where
 
 import Pure.Auth.API as Auth
@@ -12,35 +12,36 @@ import Pure.Maybe (producing,consuming)
 import Pure.WebSocket
 
 import Control.Concurrent
+import Data.Typeable
 
-authorize :: IO (Maybe Token)
+authorize :: Typeable _role => IO (Maybe (Token _role))
 authorize = do
   mv <- newEmptyMVar
   publish (Initiate (putMVar mv))
   takeMVar mv
 
-withToken :: (Maybe Token -> View) -> View
+withToken :: Typeable _role => (Maybe (Token _role) -> View) -> View
 withToken = producing authorize . consuming
 
-data Access = Access
+data Access (_role :: *) = Access
   { socket       :: WebSocket
   , extend       :: View -> View
   , onRegistered :: View
   }
 
 data Mode = LoggingIn | SigningUp | SignedUp
-instance Component Access where
-  data Model Access = Model
-    { active :: Maybe (Maybe Token -> IO ())
+instance Typeable _role => Component (Access _role) where
+  data Model (Access _role) = Model
+    { active :: Maybe (Maybe (Token _role) -> IO ())
     , mode   :: Mode
     }
     
   model = Model Nothing LoggingIn
     
-  data Msg Access 
+  data Msg (Access _role)
     = Startup
-    | Initiate (Maybe Token -> IO ())
-    | Complete (Maybe Token)
+    | Initiate (Maybe (Token _role) -> IO ())
+    | Complete (Maybe (Token _role))
     | SetMode Mode
     | Toggle
 
@@ -56,42 +57,43 @@ instance Component Access where
   view Access { socket = s, extend, onRegistered } Model {..}
     | SignedUp <- mode
     = extend $
-      Div <| Themed @Access |> 
+      Div <| Themed @(Access _role) |> 
         [ onRegistered ]
     
     | Just _ <- active
     , SigningUp <- mode 
     = extend $ 
-      Div <| Themed @Access |>
-        [ run Signup.Signup
+      Div <| Themed @(Access _role) |>
+        [ run @(Signup.Signup _role) Signup.Signup
             { Signup.socket    = s
-            , Signup.onSuccess = command (SetMode SignedUp)
-            , Signup.onLogin   = command Toggle
+            , Signup.onSuccess = command @(Msg (Access _role)) (SetMode SignedUp)
+            , Signup.onLogin   = command @(Msg (Access _role)) Toggle
             } 
         ]
 
     | Just _ <- active
     , LoggingIn <- mode
     = extend $ 
-      Div <| Themed @Access |>
-        [ run Login.Login
+      Div <| Themed @(Access _role) |>
+        [ run @(Login.Login _role) Login.Login
             { Login.socket    = s
-            , Login.onSuccess = command . Complete . Just
-            , Login.onSignup  = command Toggle
+            , Login.onSuccess = command @(Msg (Access _role)) . Complete . Just
+            , Login.onSignup  = command @(Msg (Access _role)) Toggle
             }
         ]
 
     | otherwise 
     = SimpleHTML "pure-auth-service" 
 
-start :: Update Access
+start :: Update (Access _role)
 start _ mdl = do
   subscribe
   pure mdl
 
-initiate :: (Maybe Token -> IO ()) -> Update Access
+initiate :: forall _role. Typeable _role => (Maybe (Token _role) -> IO ()) -> Update (Access _role)
 initiate callback Access { socket } mdl = do
-  mt <- LS.get "pure-auth-session"
+  let tc = toTxt (show (typeRepTyCon (typeOf (undefined :: _role))))
+  mt <- LS.get ("pure-auth-session-" <> tc)
   case mt of
     Nothing -> pure mdl 
       { active = Just callback
@@ -102,25 +104,25 @@ initiate callback Access { socket } mdl = do
       -- TODO: delegate this to the login form by seeding with this token? 
       --       I'd prefer to keep the API logic in Login/Signup.
       mv <- newEmptyMVar
-      request Auth.api socket Auth.verify (Auth.VerifyRequest t) (putMVar mv)
+      request (Auth.api @_role) socket (Auth.verify @_role) (Auth.VerifyRequest t) (putMVar mv)
       valid <- takeMVar mv
       if valid then do
         callback (Just t)
         pure mdl
       else do
-        LS.delete "pure-auth-session"
+        LS.delete ("pure-auth-session-" <> tc)
         pure mdl
           { active = Just callback
           , mode = LoggingIn
           }
 
-setMode :: Mode -> Update Access
+setMode :: Mode -> Update (Access _role)
 setMode m _ mdl =
   pure mdl 
     { mode = m 
     }
 
-toggle :: Update Access
+toggle :: Update (Access _role)
 toggle _ mdl = 
   pure mdl 
     { mode = 
@@ -130,7 +132,7 @@ toggle _ mdl =
         x         -> x
     }
 
-complete :: Maybe Token -> Update Access
+complete :: Maybe (Token _role) -> Update (Access _role)
 complete mt  _ mdl = do
   for (active mdl) ($ mt)
   pure mdl 
@@ -138,4 +140,4 @@ complete mt  _ mdl = do
     , mode = LoggingIn 
     }
 
-instance Theme Access
+instance Typeable _role => Theme (Access _role)

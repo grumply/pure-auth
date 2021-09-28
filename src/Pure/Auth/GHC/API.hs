@@ -1,4 +1,4 @@
-{-# language LambdaCase, NamedFieldPuns, RecordWildCards, BlockArguments, DuplicateRecordFields, PartialTypeSignatures, ScopedTypeVariables, DuplicateRecordFields #-}
+{-# language LambdaCase, NamedFieldPuns, RecordWildCards, BlockArguments, DuplicateRecordFields, PartialTypeSignatures, ScopedTypeVariables, DuplicateRecordFields, TypeApplications #-}
 module Pure.Auth.GHC.API (Config(..),auth) where
 
 import Pure.Auth.API as API
@@ -17,21 +17,22 @@ import Pure.Sorcerer hiding (event,Deleted)
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
+import Data.Typeable
 import Prelude hiding (read)
 
 --------------------------------------------------------------------------------
 -- Auth API implementation
 
-data Config = Config
+data Config _role = Config
   { validateUsername :: Username -> Bool
-  , onTokenChange    :: Maybe Token -> IO ()
+  , onTokenChange    :: Maybe (Token _role) -> IO ()
   , onDeleted        :: Username -> Email -> IO ()
   , onRegister       :: Username -> Email -> Key -> IO () -> IO ()
   , onRecover        :: Username -> Email -> Key -> IO ()
   , onDelete         :: Username -> Email -> Key -> IO ()
   }
 
-auth :: Config -> _
+auth :: Typeable _role => Config _role -> Endpoints (AuthMessages _role) (AuthRequests _role) (AuthMessages _role) (AuthRequests _role)
 auth config = Endpoints API.api msgs reqs
   where
     msgs = handleRegister config
@@ -49,16 +50,16 @@ auth config = Endpoints API.api msgs reqs
        <:> handleRecover config
        <:> WS.none
 
-handleRegister :: Config -> MessageHandler API.Register
+handleRegister :: forall _role. Typeable _role => Config _role -> MessageHandler (API.Register _role)
 handleRegister Config { onRegister, validateUsername } = awaiting do
   RegisterMessage { email = e, ..} <- acquire
 
   let un = normalize username
 
   when (validateUsername un) do
-    read (AuthEventStream un) >>= \case
+    read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
 
-      Just (_ :: Auth) -> 
+      Just (_ :: Auth _role) -> 
         pure ()
 
       _ -> do
@@ -66,185 +67,185 @@ handleRegister Config { onRegister, validateUsername } = awaiting do
         email <- hashEmail e
         key   <- hashKey k
         pass  <- hashPassword password
-        r     <- let username = un in observe (AuthEventStream un) Registered {..}
-        let activate = write (AuthEventStream un) Activated
+        r     <- let username = un in observe (AuthEventStream un :: Stream (AuthEvent _role)) (Registered {..} :: AuthEvent _role)
+        let activate = write (AuthEventStream un :: Stream (AuthEvent _role)) (Activated :: AuthEvent _role)
         case r of
           -- Check if `Added` to prevent re-initialization after deletion.
-          Added (_ :: Auth) -> liftIO (onRegister un e k activate)
+          Added (_ :: Auth _role) -> liftIO (onRegister un e k activate)
           _ -> pure ()
 
-handleInitiateRecovery :: Config -> MessageHandler API.InitiateRecovery
+handleInitiateRecovery :: forall _role. Typeable _role => Config _role -> MessageHandler (API.InitiateRecovery _role)
 handleInitiateRecovery Config { onRecover } = awaiting do
   InitiateRecoveryMessage { email = e, ..} <- acquire
   
   let un = normalize username
 
-  read (AuthEventStream un) >>= \case
+  read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
 
-    Just Auth { email, activation = Nothing } | checkHash e email -> do
+    Just (Auth { email, activation = Nothing } :: Auth _role) | checkHash e email -> do
       k   <- newKey 64
       key <- hashKey k
-      write (AuthEventStream un) StartedRecovery {..}
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (StartedRecovery {..} :: AuthEvent _role)
       liftIO (onRecover un e k)
     _ -> 
       pure ()
 
-handleUpdateEmail :: Config -> MessageHandler API.UpdateEmail
+handleUpdateEmail :: forall _role. Typeable _role => Config _role -> MessageHandler (API.UpdateEmail _role)
 handleUpdateEmail Config { onRecover } = awaiting do
   UpdateEmailMessage { email = e, ..} <- acquire
 
   let un = normalize username
 
-  read (AuthEventStream un) >>= \case
+  read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
 
-    Just Auth { activation = Nothing, pass } | checkHash password pass -> do
+    Just (Auth { activation = Nothing, pass } :: Auth _role) | checkHash password pass -> do
       email <- hashEmail e
-      write (AuthEventStream un) ChangedEmail {..}
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (ChangedEmail {..} :: AuthEvent _role)
 
     _ ->
       pure ()
 
-handleLogout :: Config -> MessageHandler API.Logout
+handleLogout :: forall _role. Typeable _role => Config _role -> MessageHandler (API.Logout _role)
 handleLogout Config { onTokenChange } = awaiting do
   LogoutMessage { token = t, ..} <- acquire
 
   let Token (username,_) = t
       un = normalize username
 
-  read (AuthEventStream un) >>= \case
+  read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
 
-    Just Auth { activation = Nothing, tokens } | Just token <- checkToken t tokens -> do
-      write (AuthEventStream un) LoggedOut {..}
+    Just (Auth { activation = Nothing, tokens } :: Auth _role) | Just token <- checkToken t tokens -> do
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (LoggedOut {..} :: AuthEvent _role)
       liftIO (onTokenChange Nothing)
 
     _ ->
       pure ()
 
-handleLogin :: Config -> RequestHandler API.Login
+handleLogin :: forall _role. Typeable _role => Config _role -> RequestHandler (API.Login _role)
 handleLogin Config { onTokenChange } = responding do
   LoginRequest {..} <- acquire
 
   let un = normalize username
   
-  read (AuthEventStream un) >>= \case
+  read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
 
-    Just Auth { activation = Nothing, pass = p } | checkHash password p -> do
+    Just (Auth { activation = Nothing, pass = p } :: Auth _role) | checkHash password p -> do
       t <- newToken un
       reply (Just t)
       token <- hashToken t
-      write (AuthEventStream un) LoggedIn {..}
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (LoggedIn {..} :: AuthEvent _role)
       liftIO (onTokenChange (Just t))
 
     _ -> 
       reply Nothing
 
-handleActivate :: Config -> RequestHandler API.Activate
+handleActivate :: forall _role. Typeable _role => Config _role -> RequestHandler (API.Activate _role)
 handleActivate Config { onTokenChange } = responding do
   ActivateRequest {..} <- acquire
 
   let un = normalize username
 
-  read (AuthEventStream un) >>= \case
+  read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
 
-    Just Auth { activation = Just a } | checkHash key a -> do
+    Just (Auth { activation = Just a } :: Auth _role) | checkHash key a -> do
       t <- newToken un
       reply (Just t)
       token <- hashToken t
-      write (AuthEventStream un) Activated
-      write (AuthEventStream un) LoggedIn {..}
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (Activated :: AuthEvent _role)
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (LoggedIn {..} :: AuthEvent _role)
 
     _ ->
       reply Nothing
 
-handleVerify :: Config -> RequestHandler API.Verify
+handleVerify :: forall _role. Typeable _role => Config _role -> RequestHandler (API.Verify _role)
 handleVerify Config { onTokenChange } = responding do
   VerifyRequest {..} <- acquire
 
   let Token (username,k) = token
       un = normalize username
 
-  read (AuthEventStream un) >>= \case
+  read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
 
-    Just Auth { activation = Nothing, tokens } | Just _ <- unsafeCheckHashes k tokens -> do
+    Just (Auth { activation = Nothing, tokens } :: Auth _role) | Just _ <- unsafeCheckHashes k tokens -> do
       reply True
       liftIO (onTokenChange (Just token))
 
     _ ->
       reply False
 
-handleUpdatePassword :: Config -> RequestHandler API.UpdatePassword
+handleUpdatePassword :: forall _role. Typeable _role => Config _role -> RequestHandler (API.UpdatePassword _role)
 handleUpdatePassword Config { onTokenChange } = responding do
   UpdatePasswordRequest {..} <- acquire
 
   let un = normalize username
 
-  read (AuthEventStream un) >>= \case
+  read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
 
-    Just Auth { activation = Nothing, pass } | checkHash oldPassword pass -> do
+    Just (Auth { activation = Nothing, pass } :: Auth _role) | checkHash oldPassword pass -> do
       t <- newToken un
       reply (Just t)
 
       pass <- hashPassword newPassword
-      write (AuthEventStream un) ChangedPassword {..}
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (ChangedPassword {..} :: AuthEvent _role)
 
       token <- hashToken t
-      write (AuthEventStream un) LoggedIn {..}
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (LoggedIn {..} :: AuthEvent _role)
 
       liftIO (onTokenChange (Just t))
 
     _ ->
       reply Nothing
 
-handleRecover :: Config -> RequestHandler API.Recover
+handleRecover :: forall _role. Typeable _role => Config _role -> RequestHandler (API.Recover _role)
 handleRecover Config { onTokenChange } = responding do
   RecoverRequest { key = k, ..} <- acquire
 
   let un = normalize username
 
   key <- hashKey k
-  read (AuthEventStream un) >>= \case
+  read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
 
-    Just Auth { activation = Nothing, recovery = Just r } | key == r -> do
+    Just (Auth { activation = Nothing, recovery = Just r } :: Auth _role) | key == r -> do
       t <- newToken un
       reply (Just t)
 
       pass <- hashPassword password
-      write (AuthEventStream un) ChangedPassword {..}
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (ChangedPassword {..} :: AuthEvent _role)
 
       token <- hashToken t
-      write (AuthEventStream un) LoggedIn {..}
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (LoggedIn {..} :: AuthEvent _role)
       
       liftIO (onTokenChange (Just t))
 
     _ ->
       reply Nothing
 
-handleInitiateDelete :: Config -> MessageHandler API.InitiateDeletion
+handleInitiateDelete :: forall _role. Typeable _role => Config _role -> MessageHandler (API.InitiateDeletion _role)
 handleInitiateDelete Config { onDelete } = awaiting do
   InitiateDeletionMessage { email = e, ..} <- acquire
   
   let un = normalize username
 
-  read (AuthEventStream un) >>= \case
+  read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
 
-    Just Auth { email, deletion = Nothing } | checkHash e email -> do
+    Just (Auth { email, deletion = Nothing } :: Auth _role) | checkHash e email -> do
       k   <- newKey 64
       key <- hashKey k
-      write (AuthEventStream un) StartedDeletion {..}
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (StartedDeletion {..} :: AuthEvent _role)
       liftIO (onDelete un e k)
 
     _ -> 
       pure ()
 
-handleDelete :: Config -> MessageHandler API.Delete
+handleDelete :: forall _role. Typeable _role => Config _role -> MessageHandler (API.Delete _role)
 handleDelete Config { onDeleted } = awaiting do
   DeleteMessage { email = e, key = k, .. } <- acquire
 
   let un = normalize username
 
-  read (AuthEventStream un) >>= \case
-    Just Auth { email, deletion = Just k' } | checkHash k k' -> do
-      write (AuthEventStream un) Deleted 
+  read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
+    Just (Auth { email, deletion = Just k' } :: Auth _role) | checkHash k k' -> do
+      write (AuthEventStream un :: Stream (AuthEvent _role)) (Deleted :: AuthEvent _role)
       liftIO (onDeleted un e)
       
     _ ->
