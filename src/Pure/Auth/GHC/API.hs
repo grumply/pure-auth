@@ -131,10 +131,10 @@ handleLogin Config { onTokenChange } = responding do
 
     Just (Auth { activation = Nothing, pass = p } :: Auth _role) | checkHash password p -> do
       t <- newToken un
-      reply (Just t)
       token <- hashToken t
       write (AuthEventStream un :: Stream (AuthEvent _role)) (LoggedIn {..} :: AuthEvent _role)
       liftIO (onTokenChange (Just t))
+      reply (Just t)
 
     _ -> 
       reply Nothing
@@ -167,8 +167,8 @@ handleVerify Config { onTokenChange } = responding do
   read (AuthEventStream un :: Stream (AuthEvent _role)) >>= \case
 
     Just (Auth { activation = Nothing, tokens } :: Auth _role) | Just _ <- unsafeCheckHashes k tokens -> do
-      reply True
       liftIO (onTokenChange (Just token))
+      reply True
 
     _ ->
       reply False
@@ -183,7 +183,6 @@ handleUpdatePassword Config { onTokenChange } = responding do
 
     Just (Auth { activation = Nothing, pass } :: Auth _role) | checkHash oldPassword pass -> do
       t <- newToken un
-      reply (Just t)
 
       pass <- hashPassword newPassword
       write (AuthEventStream un :: Stream (AuthEvent _role)) (ChangedPassword {..} :: AuthEvent _role)
@@ -192,6 +191,7 @@ handleUpdatePassword Config { onTokenChange } = responding do
       write (AuthEventStream un :: Stream (AuthEvent _role)) (LoggedIn {..} :: AuthEvent _role)
 
       liftIO (onTokenChange (Just t))
+      reply (Just t)
 
     _ ->
       reply Nothing
@@ -207,7 +207,6 @@ handleRecover Config { onTokenChange } = responding do
 
     Just (Auth { activation = Nothing, recovery = Just r } :: Auth _role) | key == r -> do
       t <- newToken un
-      reply (Just t)
 
       pass <- hashPassword password
       write (AuthEventStream un :: Stream (AuthEvent _role)) (ChangedPassword {..} :: AuthEvent _role)
@@ -216,6 +215,7 @@ handleRecover Config { onTokenChange } = responding do
       write (AuthEventStream un :: Stream (AuthEvent _role)) (LoggedIn {..} :: AuthEvent _role)
       
       liftIO (onTokenChange (Just t))
+      reply (Just t)
 
     _ ->
       reply Nothing
