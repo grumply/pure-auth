@@ -1,5 +1,6 @@
 { mkDerivation, stdenv, ghc, base, bytestring, pure-txt, pure-json, pure-maybe, pure-elm, 
-  pure-localstorage, pure-websocket, pure-sorcerer, hashable, crypto-api, pwstore-fast
+  pure-localstorage, pure-websocket, pure-sorcerer, hashable, crypto-api, pwstore-fast,
+  pure-hooks
 }:
 mkDerivation {
   pname = "pure-auth";
@@ -13,6 +14,7 @@ mkDerivation {
     pure-maybe
     pure-localstorage
     pure-websocket
+    pure-hooks
     hashable
   ] ++ (if ghc.isGhcjs or false
         then [ ]

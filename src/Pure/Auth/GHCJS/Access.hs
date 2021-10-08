@@ -1,5 +1,5 @@
-{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields, TypeFamilies, FlexibleContexts, ScopedTypeVariables #-}
-module Pure.Auth.GHCJS.Access ( Access(..), authorize, withToken ) where
+{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields, TypeFamilies, FlexibleContexts, ScopedTypeVariables, AllowAmbiguousTypes #-}
+module Pure.Auth.GHCJS.Access ( Access(..), authenticate, deauthenticate, authorize, withToken, defaultOnRegistered ) where
 
 import Pure.Auth.API as Auth
 import Pure.Auth.Data.Token
@@ -8,26 +8,38 @@ import qualified Pure.Auth.GHCJS.Access.Signup as Signup
 
 import Pure.Elm.Component hiding (active,not,mode,start)
 import qualified Pure.Data.LocalStorage as LS
+import Pure.Hooks
 import Pure.Maybe (producing,consuming)
 import Pure.WebSocket
 
 import Control.Concurrent
 import Data.Typeable
 
-authorize :: Typeable _role => IO (Maybe (Token _role))
-authorize = do
+authenticate :: Typeable _role => IO (Maybe (Token _role))
+authenticate = do
   mv <- newEmptyMVar
   publish (Initiate (putMVar mv))
   takeMVar mv
 
+deauthenticate :: forall _role. Typeable _role => IO ()
+deauthenticate = publish (Deauth :: Msg (Access _role))
+
+-- protect a view with a login form, if necessary
+authorize :: Typeable _role => (Maybe (Token _role) -> View) -> View
+authorize = producing authenticate . consuming
+
+-- render a view with role-associated token, updating as the token changes
 withToken :: Typeable _role => (Maybe (Token _role) -> View) -> View
-withToken = producing authorize . consuming
+withToken = useContext
 
 data Access (_role :: *) = Access
   { socket       :: WebSocket
   , extend       :: View -> View
   , onRegistered :: View
   }
+
+defaultOnRegistered :: forall _role. Typeable _role => View
+defaultOnRegistered = producing (publish (SetMode LoggingIn :: Msg (Access _role))) (const Null)
 
 data Mode = LoggingIn | SigningUp | SignedUp
 instance Typeable _role => Component (Access _role) where
@@ -44,6 +56,7 @@ instance Typeable _role => Component (Access _role) where
     | Complete (Maybe (Token _role))
     | SetMode Mode
     | Toggle
+    | Deauth
 
   startup = [Startup]
 
@@ -53,6 +66,7 @@ instance Typeable _role => Component (Access _role) where
     SetMode m  -> setMode m
     Toggle     -> toggle
     Complete t -> complete t
+    Deauth     -> deauth
 
   view Access { socket = s, extend, onRegistered } Model {..}
     | SignedUp <- mode
@@ -95,11 +109,13 @@ initiate callback Access { socket } mdl = do
   let tc = toTxt (show (typeRepTyCon (typeOf (undefined :: _role))))
   mt <- LS.get ("pure-auth-session-" <> tc)
   case mt of
-    Nothing -> pure mdl 
-      { active = Just callback
-      , mode = LoggingIn 
-      }
-      
+    Nothing -> do
+      provide mt
+      pure mdl 
+        { active = Just callback
+        , mode = LoggingIn 
+        }
+        
     Just t -> do
       -- TODO: delegate this to the login form by seeding with this token? 
       --       I'd prefer to keep the API logic in Login/Signup.
@@ -108,13 +124,22 @@ initiate callback Access { socket } mdl = do
       valid <- takeMVar mv
       if valid then do
         callback (Just t)
+        provide (Just t)
         pure mdl
       else do
         LS.delete ("pure-auth-session-" <> tc)
+        provide (Nothing :: Maybe (Token _role))
         pure mdl
           { active = Just callback
           , mode = LoggingIn
           }
+
+deauth :: forall _role. Typeable _role => Update (Access _role)
+deauth _ mdl@Model {..} = do
+  let tc = toTxt (show (typeRepTyCon (typeOf (undefined :: _role))))
+  LS.delete ("pure-auth-session-" <> tc)
+  provide (Nothing :: Maybe (Token _role))
+  pure mdl
 
 setMode :: Mode -> Update (Access _role)
 setMode m _ mdl =
@@ -132,8 +157,9 @@ toggle _ mdl =
         x         -> x
     }
 
-complete :: Maybe (Token _role) -> Update (Access _role)
+complete :: Typeable _role => Maybe (Token _role) -> Update (Access _role)
 complete mt  _ mdl = do
+  provide mt
   for (active mdl) ($ mt)
   pure mdl 
     { active = Nothing
