@@ -13,6 +13,7 @@ import Pure.Maybe (producing,consuming)
 import Pure.WebSocket
 
 import Control.Concurrent
+import Data.Maybe
 import Data.Typeable
 
 authenticate :: Typeable _role => IO (Maybe (Token _role))
@@ -45,10 +46,11 @@ data Mode = LoggingIn | SigningUp | SignedUp
 instance Typeable _role => Component (Access _role) where
   data Model (Access _role) = Model
     { active :: Maybe (Maybe (Token _role) -> IO ())
+    , current :: Maybe (Token _role)
     , mode   :: Mode
     }
     
-  model = Model Nothing LoggingIn
+  model = Model Nothing Nothing LoggingIn
     
   data Msg (Access _role)
     = Startup
@@ -105,41 +107,47 @@ start _ mdl = do
   pure mdl
 
 initiate :: forall _role. Typeable _role => (Maybe (Token _role) -> IO ()) -> Update (Access _role)
-initiate callback Access { socket } mdl = do
-  let tc = toTxt (show (typeRepTyCon (typeOf (undefined :: _role))))
-  mt <- LS.get ("pure-auth-session-" <> tc)
-  case mt of
-    Nothing -> do
-      provide mt
-      pure mdl 
-        { active = Just callback
-        , mode = LoggingIn 
-        }
-        
-    Just t -> do
-      -- TODO: delegate this to the login form by seeding with this token? 
-      --       I'd prefer to keep the API logic in Login/Signup.
-      mv <- newEmptyMVar
-      request (Auth.api @_role) socket (Auth.verify @_role) (Auth.VerifyRequest t) (putMVar mv)
-      valid <- takeMVar mv
-      if valid then do
-        callback (Just t)
-        provide (Just t)
-        pure mdl
-      else do
-        LS.delete ("pure-auth-session-" <> tc)
-        provide (Nothing :: Maybe (Token _role))
-        pure mdl
+initiate callback Access { socket } mdl@Model { current } 
+  | isJust current = do
+    callback current
+    pure mdl
+  | otherwise = do
+    let tc = toTxt (show (typeRepTyCon (typeOf (undefined :: _role))))
+    mt <- LS.get ("pure-auth-session-" <> tc)
+    case mt of
+      Nothing -> do
+        provide mt
+        pure mdl 
           { active = Just callback
-          , mode = LoggingIn
+          , current = Nothing
+          , mode = LoggingIn 
           }
+          
+      Just t -> do
+        -- TODO: delegate this to the login form by seeding with this token? 
+        --       I'd prefer to keep the API logic in Login/Signup.
+        mv <- newEmptyMVar
+        request (Auth.api @_role) socket (Auth.verify @_role) (Auth.VerifyRequest t) (putMVar mv)
+        valid <- takeMVar mv
+        if valid then do
+          callback (Just t)
+          provide (Just t)
+          pure mdl { current = Just t }
+        else do
+          LS.delete ("pure-auth-session-" <> tc)
+          provide (Nothing :: Maybe (Token _role))
+          pure mdl
+            { active = Just callback
+            , current = Nothing
+            , mode = LoggingIn
+            }
 
 deauth :: forall _role. Typeable _role => Update (Access _role)
 deauth _ mdl@Model {..} = do
   let tc = toTxt (show (typeRepTyCon (typeOf (undefined :: _role))))
   LS.delete ("pure-auth-session-" <> tc)
   provide (Nothing :: Maybe (Token _role))
-  pure mdl
+  pure mdl { current = Nothing }
 
 setMode :: Mode -> Update (Access _role)
 setMode m _ mdl =
@@ -163,6 +171,7 @@ complete mt  _ mdl = do
   for (active mdl) ($ mt)
   pure mdl 
     { active = Nothing
+    , current = mt
     , mode = LoggingIn 
     }
 
