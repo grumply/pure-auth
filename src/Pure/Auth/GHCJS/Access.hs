@@ -1,5 +1,5 @@
 {-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields, TypeFamilies, FlexibleContexts, ScopedTypeVariables, AllowAmbiguousTypes #-}
-module Pure.Auth.GHCJS.Access ( Access(..), deauthenticate, authorize, withToken, defaultOnRegistered ) where
+module Pure.Auth.GHCJS.Access ( Access(..), authenticate, deauthenticate, authorize, withToken, defaultOnRegistered ) where
 
 import Pure.Auth.API as Auth
 import Pure.Auth.Data.Token
@@ -13,24 +13,44 @@ import Pure.Maybe (producing,consuming)
 import Pure.WebSocket
 
 import Control.Concurrent
+import Control.Monad
 import Data.Maybe
 import Data.Typeable
+
+authenticate :: forall _role. Typeable _role => WebSocket -> IO (Maybe (Token _role))
+authenticate socket = do
+  let tc = toTxt (show (typeRepTyCon (typeOf (undefined :: _role))))
+  mt <- LS.get ("pure-auth-session-" <> tc)
+  case mt of
+    Nothing -> pure Nothing
+        
+    Just t -> do
+      mv <- newEmptyMVar
+      request (Auth.api @_role) socket (Auth.verify @_role) (Auth.VerifyRequest t) (putMVar mv)
+      valid <- takeMVar mv
+      if valid then do
+        provide (Just t)
+        pure (Just t)
+      else do
+        provide (Nothing :: Maybe (Token _role))
+        LS.delete ("pure-auth-session-" <> tc)
+        pure Nothing
 
 -- protect a view with a login form, if necessary
 authorize :: Typeable _role => Access _role -> (Token _role -> View) -> View
 authorize access f = useContext' $ \case
-  Just t -> f t
-  _      -> run access
+  Just (Just t) -> f t
+  _             -> run access
 
 deauthenticate :: forall _role. Typeable _role => IO ()
 deauthenticate = do
   let tc = toTxt (show (typeRepTyCon (typeOf (undefined :: _role))))
   LS.delete ("pure-auth-session-" <> tc)
-  unprovide @(Token _role)
+  provide (Nothing :: Maybe (Token _role))
 
 -- render a view with role-associated token, updating as the token changes
 withToken :: Typeable _role => (Maybe (Token _role) -> View) -> View
-withToken = useContext'
+withToken f = useContext' (f . join)
 
 data Access (_role :: *) = Access
   { socket       :: WebSocket
@@ -80,28 +100,15 @@ instance Typeable _role => Component (Access _role) where
         Div <| Themed @(Access _role) |>
           [ run @(Login.Login _role) Login.Login
               { Login.socket    = s
-              , Login.onSuccess = provide
+              , Login.onSuccess = provide . Just
               , Login.onSignup  = command @(Msg (Access _role)) Toggle
               }
           ]
 
 start :: forall _role. Typeable _role => Update (Access _role)
 start Access { socket } mdl = do
-  let tc = toTxt (show (typeRepTyCon (typeOf (undefined :: _role))))
-  mt <- LS.get ("pure-auth-session-" <> tc)
-  case mt of
-    Nothing -> pure mdl
-        
-    Just t -> do
-      mv <- newEmptyMVar
-      request (Auth.api @_role) socket (Auth.verify @_role) (Auth.VerifyRequest t) (putMVar mv)
-      valid <- takeMVar mv
-      if valid then do
-        provide t
-        pure mdl
-      else do
-        LS.delete ("pure-auth-session-" <> tc)
-        pure mdl
+  mt <- authenticate @_role socket
+  pure mdl
 
 setMode :: Mode -> Update (Access _role)
 setMode m _ mdl =
