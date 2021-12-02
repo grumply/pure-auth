@@ -67,9 +67,9 @@ data AuthEvent _role
     deriving stock Generic
     deriving anyclass (ToJSON,FromJSON)
 
-instance Typeable _role => Source (AuthEvent _role) where
+instance Typeable _role => Streamable (AuthEvent _role) where
   data Stream (AuthEvent _role) = AuthEventStream Username
-    deriving stock Generic
+    deriving stock (Generic,Ord,Eq)
     deriving anyclass Hashable
 
 instance Typeable _role => Aggregable (AuthEvent _role) (Auth _role) where

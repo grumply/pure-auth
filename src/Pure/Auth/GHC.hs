@@ -1,4 +1,4 @@
-{-# language AllowAmbiguousTypes, TypeApplications, ScopedTypeVariables, RecordWildCards, PatternSynonyms #-}
+{-# language AllowAmbiguousTypes, TypeApplications, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DataKinds #-}
 module Pure.Auth.GHC (module Export,authDB,tryCreateUser) where
 
 import Pure.Auth.Data.Email
@@ -9,14 +9,14 @@ import Pure.Auth.GHC.Auth as Export (AuthEvent(Deleted),Stream(AuthEventStream),
 import Pure.Auth.GHC.Auth
 import Pure.Auth.GHC.Crypto
 
-import Pure.Sorcerer (Listener,listener,read,write,observe,pattern Added)
+import Pure.Sorcerer (sorcerer,read,write,observe,pattern Added)
 
 import Data.Typeable
 
 import Prelude hiding (read)
 
-authDB :: forall _role. Typeable _role => [Listener]
-authDB = [listener @(AuthEvent _role) @(Auth _role) ]
+authDB :: forall _role. Typeable _role => IO ()
+authDB = sorcerer @(AuthEvent _role) @'[(Auth _role)]
 
 tryCreateUser :: forall _role. Typeable _role => Username -> Email -> Password -> IO Bool
 tryCreateUser un em pw =
