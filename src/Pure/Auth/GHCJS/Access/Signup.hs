@@ -45,7 +45,7 @@ instance Typeable _role => Component (Signup _role) where
     Submit         -> submit
 
   view Signup { onLogin } Model {..} =
-    Div <| Themed @(Signup _role) |>
+    Form <| Themed @(Signup _role) |>
       [ Input <| OnInput (withInput (command . SetEmail . fromTxt)) . Placeholder "Email" . Type "email"
       , Input <| OnInput (withInput (command . SetUsername . fromTxt)) . Placeholder "Username" . Type "name"
       , Input <| OnInput (withInput (command . SetPassword . fromTxt)) . Placeholder "Password" . Type "password"

@@ -44,7 +44,7 @@ instance Typeable _role => Component (Login _role) where
     Submit         -> submit
 
   view Login { onSignup } Model {..} = let status | invalid = Themed @Invalid | otherwise = id in
-    Div <| Themed @(Login _role) . status |>
+    Form <| Themed @(Login _role) . status |>
       [ Input <| OnInput (withInput (command . SetUsername . fromTxt)) . Placeholder "Username" . Type "name"
       , Input <| OnInput (withInput (command . SetPassword . fromTxt)) . Placeholder "Password" . Type "password"
       , Button <| OnClick (const (command Submit)) |> 
