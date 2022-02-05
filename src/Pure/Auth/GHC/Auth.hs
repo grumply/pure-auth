@@ -74,7 +74,7 @@ instance Typeable _role => Streamable (AuthEvent _role) where
     deriving anyclass Hashable
     
   stream (AuthEventStream un) = 
-    "users/" <> fromTxt (toTxt un)
+    "users/" <> fromTxt (toTxt un) <> ".stream"
 
 instance Typeable _role => Aggregable (AuthEvent _role) (Auth _role) where
   update Registered {..} Nothing = 
