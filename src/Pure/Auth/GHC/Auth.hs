@@ -71,6 +71,9 @@ instance Typeable _role => Streamable (AuthEvent _role) where
   data Stream (AuthEvent _role) = AuthEventStream Username
     deriving stock (Generic,Ord,Eq)
     deriving anyclass Hashable
+    
+  stream (AuthEventStream un) = 
+    "users/" <> fromTxt (toTxt un)
 
 instance Typeable _role => Aggregable (AuthEvent _role) (Auth _role) where
   update Registered {..} Nothing = 
@@ -115,4 +118,6 @@ instance Typeable _role => Aggregable (AuthEvent _role) (Auth _role) where
 
   update _ _ =
     Ignore
+    
+  aggregate = "user.aggregate"
 
