@@ -8,6 +8,7 @@ import Pure.Auth.Data.Key (Key)
 import Pure.Auth.Data.Token (Token)
 import Pure.Auth.Data.Username (Username)
 
+import Pure.Data.Txt (ToTxt(..),FromTxt(..))
 import Pure.Data.JSON (ToJSON,FromJSON)
 
 import Pure.Sorcerer hiding (Event,Deleted)
