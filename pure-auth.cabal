@@ -31,6 +31,8 @@ library
 
   build-depends:
     base,
+    pure-bloom-limiter,
+    pure-time,
     pure-txt,
     pure-hooks,
     pure-json,
@@ -45,7 +47,8 @@ library
       bytestring,
       pure-sorcerer, 
       crypto-api, 
-      pwstore-fast 
+      pwstore-fast,
+      iproute
 
     exposed-modules:
         Pure.Auth.GHC

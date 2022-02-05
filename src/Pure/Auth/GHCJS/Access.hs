@@ -1,4 +1,4 @@
-{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields, TypeFamilies, FlexibleContexts, ScopedTypeVariables, AllowAmbiguousTypes #-}
+{-# language LambdaCase, TypeApplications, RecordWildCards, NamedFieldPuns, RankNTypes, DeriveAnyClass, OverloadedStrings, DuplicateRecordFields, TypeFamilies, FlexibleContexts, ScopedTypeVariables, AllowAmbiguousTypes, UndecidableInstances #-}
 module Pure.Auth.GHCJS.Access ( Access(..), authenticate, deauthenticate, authorize, withToken, defaultOnRegistered ) where
 
 import Pure.Auth.API as Auth
@@ -37,7 +37,7 @@ authenticate socket = do
         pure Nothing
 
 -- protect a view with a login form, if necessary
-authorize :: Typeable _role => Access _role -> (Token _role -> View) -> View
+authorize :: (Theme (Access _role), Typeable _role) => Access _role -> (Token _role -> View) -> View
 authorize access f = useContext' $ \case
   Just (Just t) -> f t
   _             -> run access
@@ -62,7 +62,7 @@ defaultOnRegistered :: IO () -> View
 defaultOnRegistered f = producing f (const Null)
 
 data Mode = LoggingIn | SigningUp | SignedUp
-instance Typeable _role => Component (Access _role) where
+instance (Theme (Access _role), Typeable _role) => Component (Access _role) where
   data Model (Access _role) = Model
     { mode :: Mode
     }
@@ -84,11 +84,11 @@ instance Typeable _role => Component (Access _role) where
   view Access { socket = s, extend, onRegistered } Model {..} =
     case mode of
       SignedUp -> extend $
-        Div <| Themed @(Access _role) |> 
+        Div <| Themed @Access . Themed @(Access _role) |> 
           [ onRegistered (command Toggle) ]
     
       SigningUp -> extend $ 
-        Div <| Themed @(Access _role) |>
+        Div <| Themed @Access . Themed @(Access _role) |>
           [ run @(Signup.Signup _role) Signup.Signup
               { Signup.socket    = s
               , Signup.onSuccess = command @(Msg (Access _role)) (SetMode SignedUp)
@@ -97,7 +97,7 @@ instance Typeable _role => Component (Access _role) where
           ]
 
       LoggingIn -> extend $ 
-        Div <| Themed @(Access _role) |>
+        Div <| Themed @Access . Themed @(Access _role) |>
           [ run @(Login.Login _role) Login.Login
               { Login.socket    = s
               , Login.onSuccess = provide . Just
@@ -126,4 +126,5 @@ toggle _ mdl =
         SignedUp  -> LoggingIn
     }
 
-instance Typeable _role => Theme (Access _role)
+instance Theme Access
+instance {-# INCOHERENT #-} Typeable _role => Theme (Access _role)
