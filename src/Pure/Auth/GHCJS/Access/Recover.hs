@@ -45,9 +45,9 @@ instance Typeable _role => Component (Recover _role) where
 
   view Recover { onLogin } Model {..} = let status | invalid = Themed @Invalid | otherwise = id in
     Form <| Themed @(Recover _role) . OnSubmitWith intercept def . status |>
-      [ Input <| TabIndex 0 . OnInput (withInput (command . SetUsername . fromTxt)) . Placeholder "Username" . Type "name"
-      , Input <| TabIndex 0 . OnInput (withInput (command . SetEmail . fromTxt)) . Placeholder "Email" . Type "email"
-      , Button <| TabIndex 0 . OnClick (const (command Submit)) |> 
+      [ Input <| TabIndex 0 . OnInput (withInput (command . SetUsername @_role . fromTxt)) . Placeholder "Username" . Type "name"
+      , Input <| TabIndex 0 . OnInput (withInput (command . SetEmail @_role . fromTxt)) . Placeholder "Email" . Type "email"
+      , Button <| TabIndex 0 . OnClick (const (command (Submit @_role))) |> 
         [ "Recover" ]
       , Button <| TabIndex 0 . OnClick (const onLogin) |> 
         [ "Log In" ]

@@ -45,9 +45,9 @@ instance Typeable _role => Component (Login _role) where
 
   view Login { onSignup } Model {..} = let status | invalid = Themed @Invalid | otherwise = id in
     Form <| Themed @(Login _role) . OnSubmitWith intercept def . status |>
-      [ Input <| TabIndex 0 . OnInput (withInput (command . SetUsername . fromTxt)) . Placeholder "Username" . Type "name"
-      , Input <| TabIndex 0 . OnInput (withInput (command . SetPassword . fromTxt)) . Placeholder "Password" . Type "password"
-      , Button <| TabIndex 0 . OnClick (const (command Submit)) |> 
+      [ Input <| TabIndex 0 . OnInput (withInput (command . SetUsername @_role . fromTxt)) . Placeholder "Username" . Type "name"
+      , Input <| TabIndex 0 . OnInput (withInput (command . SetPassword @_role . fromTxt)) . Placeholder "Password" . Type "password"
+      , Button <| TabIndex 0 . OnClick (const (command (Submit @_role))) |> 
         [ "Log In" ]
       , Button <| TabIndex 0 . OnClick (const onSignup) |> 
         [ "Sign Up" ]

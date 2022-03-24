@@ -46,10 +46,10 @@ instance Typeable _role => Component (Signup _role) where
 
   view Signup { onLogin } Model {..} =
     Form <| Themed @(Signup _role) . OnSubmitWith intercept def |>
-      [ Input <| TabIndex 0 . OnInput (withInput (command . SetEmail . fromTxt)) . Placeholder "Email" . Type "email"
-      , Input <| TabIndex 0 . OnInput (withInput (command . SetUsername . fromTxt)) . Placeholder "Username" . Type "name"
-      , Input <| TabIndex 0 . OnInput (withInput (command . SetPassword . fromTxt)) . Placeholder "Password" . Type "password"
-      , Button <| TabIndex 0 . OnClick (const (command Submit)) |> 
+      [ Input <| TabIndex 0 . OnInput (withInput (command . SetEmail @_role . fromTxt)) . Placeholder "Email" . Type "email"
+      , Input <| TabIndex 0 . OnInput (withInput (command . SetUsername @_role . fromTxt)) . Placeholder "Username" . Type "name"
+      , Input <| TabIndex 0 . OnInput (withInput (command . SetPassword @_role . fromTxt)) . Placeholder "Password" . Type "password"
+      , Button <| TabIndex 0 . OnClick (const (command (Submit @_role))) |> 
         [ "Sign Up" ]
       , Button <| TabIndex 0 . OnClick (const onLogin) |>
         [ "Log In" ]

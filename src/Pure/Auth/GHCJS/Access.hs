@@ -85,14 +85,14 @@ instance (Theme (Access _role), Typeable _role) => Component (Access _role) wher
     case mode of
       SignedUp -> extend $
         Div <| Themed @Access . Themed @(Access _role) |> 
-          [ onRegistered (command Toggle) ]
+          [ onRegistered (command (Toggle @_role)) ]
     
       SigningUp -> extend $ 
         Div <| Themed @Access . Themed @(Access _role) |>
           [ run @(Signup.Signup _role) Signup.Signup
               { Signup.socket    = s
-              , Signup.onSuccess = command @(Msg (Access _role)) (SetMode SignedUp)
-              , Signup.onLogin   = command @(Msg (Access _role)) Toggle
+              , Signup.onSuccess = command (SetMode @_role SignedUp)
+              , Signup.onLogin   = command (Toggle @_role)
               } 
           ]
 
@@ -101,7 +101,7 @@ instance (Theme (Access _role), Typeable _role) => Component (Access _role) wher
           [ run @(Login.Login _role) Login.Login
               { Login.socket    = s
               , Login.onSuccess = provide . Just
-              , Login.onSignup  = command @(Msg (Access _role)) Toggle
+              , Login.onSignup  = command (Toggle @_role)
               }
           ]
 
