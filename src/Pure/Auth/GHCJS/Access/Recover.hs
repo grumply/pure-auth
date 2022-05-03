@@ -13,6 +13,7 @@ import Pure.WebSocket (WebSocket,message)
 
 import Control.Concurrent (newEmptyMVar,putMVar,takeMVar)
 import Data.Typeable
+import Data.Maybe
 
 data Recover (_role :: *) = Recover 
   { socket    :: WebSocket
@@ -45,8 +46,8 @@ instance Typeable _role => Component (Recover _role) where
 
   view Recover { onLogin } Model {..} = let status | invalid = Themed @Invalid | otherwise = id in
     Form <| Themed @(Recover _role) . OnSubmitWith intercept def . status |>
-      [ Input <| TabIndex 0 . OnInput (withInput (command . SetUsername @_role . fromTxt)) . Placeholder "Username" . Type "name"
-      , Input <| TabIndex 0 . OnInput (withInput (command . SetEmail @_role . fromTxt)) . Placeholder "Email" . Type "email"
+      [ Input <| TabIndex 0 . OnInput (command . SetUsername @_role . fromTxt . fromMaybe def . value) . Placeholder "Username" . Type "name"
+      , Input <| TabIndex 0 . OnInput (command . SetEmail @_role . fromTxt . fromMaybe def . value) . Placeholder "Email" . Type "email"
       , Button <| TabIndex 0 . OnClick (const (command (Submit @_role))) |> 
         [ "Recover" ]
       , Button <| TabIndex 0 . OnClick (const onLogin) |> 
